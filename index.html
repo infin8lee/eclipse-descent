@@ -234,6 +234,10 @@
   function radial(inner,mid,outer){ var cv=document.createElement('canvas'); cv.width=cv.height=128; var g=cv.getContext('2d');
     var rg=g.createRadialGradient(64,64,0,64,64,64); rg.addColorStop(0,inner); rg.addColorStop(0.4,mid); rg.addColorStop(1,outer);
     g.fillStyle=rg; g.fillRect(0,0,128,128); return new THREE.CanvasTexture(cv); }
+  function bibTex(num){ var cv=document.createElement('canvas'); cv.width=140; cv.height=170; var g=cv.getContext('2d');
+    g.fillStyle='#f2f2ea'; g.fillRect(0,0,140,170); g.fillStyle='#c81f1f'; g.fillRect(0,0,140,26); g.fillRect(0,144,140,26);
+    g.fillStyle='#0e0f12'; g.font='bold 118px Arial,sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText(num,70,90);
+    g.strokeStyle='#0e0f12'; g.lineWidth=5; g.strokeRect(3,3,134,164); var t=new THREE.CanvasTexture(cv); t.anisotropy=4; return t; }
   var SUNDIR=new THREE.Vector3(0.10,0.17,-0.98).normalize(), SUNDIST=7200;
   var coronaSpr=new THREE.Sprite(new THREE.SpriteMaterial({map:radial('rgba(255,250,235,0.95)','rgba(255,240,210,0.35)','rgba(255,240,210,0)'),blending:THREE.AdditiveBlending,depthWrite:false,depthTest:false,transparent:true,opacity:0}));
   coronaSpr.scale.set(2600,2600,1); coronaSpr.layers.set(2); coronaSpr.renderOrder=1; scene.add(coronaSpr);
@@ -301,17 +305,70 @@
     beam.scale.set(r*3.4,r*3.4,1); beam.position.set(targetCX,targetCY+3,targetCZ); targetGroup.add(beam);
   }
 
-  // ============================================================ the skier
-  var skier=new THREE.Group(); var skierMats=[];
-  (function(){ var suit=new THREE.MeshStandardMaterial({color:0xff5a3c,roughness:0.55}), dark=new THREE.MeshStandardMaterial({color:0x1a1e28,roughness:0.6}), skiMat=new THREE.MeshStandardMaterial({color:0xffe36b,roughness:0.4,metalness:0.2});
-    skierMats=[suit,dark,skiMat];
-    var torso=new THREE.Mesh(new THREE.CylinderGeometry(0.78,0.62,2.6,10),suit); torso.position.y=2.5; torso.rotation.x=0.35;
-    var shldr=new THREE.Mesh(new THREE.SphereGeometry(0.82,12,10),suit); shldr.position.set(0,3.15,0.28);
-    var head=new THREE.Mesh(new THREE.SphereGeometry(0.62,12,12),dark); head.position.set(0,3.7,0.42);
-    var legs=new THREE.Mesh(new THREE.CylinderGeometry(0.52,0.42,2.1,8),dark); legs.position.set(0,1.1,0.15); legs.rotation.x=0.5;
-    var skiL=new THREE.Mesh(new THREE.BoxGeometry(0.34,0.16,4.6),skiMat); skiL.position.set(-0.55,0.1,0.2); var skiR=skiL.clone(); skiR.position.x=0.55;
-    var poleL=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,2.4,5),dark); poleL.position.set(-1.1,1.4,-0.2); poleL.rotation.x=-0.3; var poleR=poleL.clone(); poleR.position.x=1.1;
-    skier.add(torso,shldr,head,legs,skiL,skiR,poleL,poleR); })();
+  // ============================================================ the skier — a pro downhill racer
+  var RIG={}, skier=new THREE.Group();
+  (function buildSkier(){
+    var red=new THREE.MeshStandardMaterial({color:0xd51f26,roughness:0.5,metalness:0.05});
+    var blk=new THREE.MeshStandardMaterial({color:0x14161c,roughness:0.55});
+    var white=new THREE.MeshStandardMaterial({color:0xeef0f4,roughness:0.5});
+    var helm=new THREE.MeshStandardMaterial({color:0x0e1116,roughness:0.2,metalness:0.4});
+    var visorM=new THREE.MeshStandardMaterial({color:0x9a7a2e,roughness:0.06,metalness:0.95,emissive:0x241a06,emissiveIntensity:0.5});
+    var boot=new THREE.MeshStandardMaterial({color:0x262a33,roughness:0.42,metalness:0.15});
+    var buckle=new THREE.MeshStandardMaterial({color:0x39d0ff,roughness:0.3,metalness:0.4,emissive:0x0a2a33,emissiveIntensity:0.4});
+    var skiTop=new THREE.MeshStandardMaterial({color:0xffe14a,roughness:0.32,metalness:0.25});
+    var skiBase=new THREE.MeshStandardMaterial({color:0x0d0e11,roughness:0.5});
+    var poleM=new THREE.MeshStandardMaterial({color:0x2b3038,roughness:0.4,metalness:0.55});
+    function P(par,geo,mat,x,y,z,rx,ry,rz){ var m=new THREE.Mesh(geo,mat); m.position.set(x||0,y||0,z||0); m.rotation.set(rx||0,ry||0,rz||0); par.add(m); return m; }
+    var CYL=function(a,b,h,s){return new THREE.CylinderGeometry(a,b,h,s||10);}, BOX=function(w,h,d){return new THREE.BoxGeometry(w,h,d);}, SPH=function(r){return new THREE.SphereGeometry(r,14,12);};
+
+    // ---- board: skis, bindings, boots, legs (static athletic crouch) ----
+    var board=new THREE.Group(); skier.add(board);
+    [-0.52,0.52].forEach(function(sx){
+      P(board,BOX(0.34,0.05,5.0),skiBase,sx,0.03,0.1);            // base
+      P(board,BOX(0.36,0.08,5.0),skiTop,sx,0.10,0.1);             // top
+      P(board,BOX(0.12,0.09,5.0),blk,sx,0.16,0.1);                // graphic stripe
+      P(board,BOX(0.36,0.42,0.6),skiTop,sx,0.26,-2.2,-0.72);      // upturned tip
+      P(board,BOX(0.42,0.18,0.72),blk,sx,0.22,0.1);               // binding
+      P(board,BOX(0.46,0.6,1.04),boot,sx,0.55,0.05,0.3);          // boot shell
+      P(board,BOX(0.5,0.12,0.52),buckle,sx,0.72,0.16,0.3);        // buckle
+      P(board,BOX(0.48,0.5,0.55),boot,sx,0.96,-0.16,-0.12);       // forward-lean cuff
+      P(board,CYL(0.19,0.16,1.3,8),red,sx,1.4,-0.36,-0.45);       // shin
+      P(board,SPH(0.24),blk,sx,2.0,-0.56);                        // knee pad
+      P(board,CYL(0.28,0.22,1.25,8),red,sx*0.9,2.5,-0.18,0.42);   // thigh
+    });
+    // hips
+    var hips=new THREE.Group(); hips.position.set(0,2.95,-0.05); skier.add(hips); RIG.hips=hips; RIG.hipY=2.95;
+    P(hips,BOX(1.26,0.72,0.82),red); P(hips,BOX(1.3,0.2,0.86),blk,0,-0.3,0);
+
+    // ---- upper body (leans/flattens for the tuck) ----
+    var torso=new THREE.Group(); torso.position.set(0,0.18,0); hips.add(torso); RIG.torso=torso;
+    P(torso,CYL(0.64,0.5,1.0,12),red,0,0.55,0);                   // waist->chest
+    var chest=P(torso,SPH(0.72),red,0,1.15,-0.05); chest.scale.set(1.06,0.92,0.8);
+    P(torso,BOX(1.16,1.12,0.16),blk,0,0.95,0.42);                 // back panel
+    var bib=P(torso,BOX(1.02,1.28,0.06),white,0,0.98,0.52); bib.material=new THREE.MeshStandardMaterial({map:bibTex('7'),roughness:0.55});
+    P(torso,BOX(0.08,1.5,0.5),white,0.6,0.9,0); P(torso,BOX(0.08,1.5,0.5),white,-0.6,0.9,0); // side stripes
+    P(torso,SPH(0.34),red,0.66,1.55,-0.05); P(torso,SPH(0.34),red,-0.66,1.55,-0.05);         // shoulders
+
+    // arms reach forward, hands together (aero) — pivots animate the tuck
+    function arm(sx){ var g=new THREE.Group(); g.position.set(sx*0.66,1.55,-0.05); torso.add(g);
+      P(g,CYL(0.2,0.16,0.98,8),red,-sx*0.16,-0.22,-0.5,-0.95);    // upper arm
+      P(g,CYL(0.16,0.14,0.98,8),blk,-sx*0.32,-0.56,-1.16,-1.4);   // forearm
+      P(g,BOX(0.26,0.24,0.36),blk,-sx*0.4,-0.72,-1.62);           // glove
+      P(g,CYL(0.05,0.05,1.5,6),poleM,-sx*0.4,-0.55,-1.0,1.15);    // pole shaft (forward grip)
+      P(g,CYL(0.05,0.05,2.0,6),poleM,-sx*0.28,-0.12,0.35,1.95);   // pole sweep back
+      return g; }
+    RIG.armL=arm(-1); RIG.armR=arm(1);
+
+    // neck + head + aero helmet + goggles
+    var neck=new THREE.Group(); neck.position.set(0,1.52,-0.12); torso.add(neck); RIG.head=neck;
+    P(neck,CYL(0.22,0.24,0.42,8),blk,0,0.2,-0.16,-0.4);           // neck (balaclava)
+    P(neck,SPH(0.44),blk,0,0.56,-0.5);                            // head
+    var hel=P(neck,SPH(0.5),helm,0,0.6,-0.5); hel.scale.set(1.02,1.0,1.16); // aero helmet
+    P(neck,BOX(0.52,0.3,0.5),helm,0,0.6,-0.98,-0.18);            // aero tail
+    P(neck,BOX(0.88,0.32,0.16),blk,0,0.62,-0.86);                // goggle frame
+    P(neck,BOX(0.78,0.22,0.12),visorM,0,0.62,-0.94);             // tinted lens
+  })();
+  skier.scale.setScalar(0.9);
   scene.add(skier);
   var blob=new THREE.Mesh(new THREE.CircleGeometry(2.2,20),new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:0.28,depthWrite:false})); blob.rotation.x=-Math.PI/2; scene.add(blob);
 
@@ -382,7 +439,7 @@
   var diff=SIM_DIFF;
   var S={ x:0,z:0,y:0,vy:0, head:0,headTarget:0, speed:8, airborne:false, roll:0, crash:0, invuln:0,
           gates:0, dodged:0, hearts:Infinity, airStart:0,airAccum:0,bestAir:0, prevZZ:0,
-          mode:'sim', started:false, finished:false, failed:false, landRating:'', manualEcl:0, shake:0, toastT:0 };
+          mode:'sim', started:false, finished:false, failed:false, landRating:'', manualEcl:0, shake:0, toastT:0, tuckA:0 };
   var topSpeed=0, curPhase=0;
 
   function reset(){
@@ -543,10 +600,15 @@
     for(var i=0;i<SPRAY;i++){ if(sprLife[i]>0){ sprLife[i]-=dt; spr[i*3]+=sprV[i].x*dt; spr[i*3+1]+=sprV[i].y*dt; spr[i*3+2]+=sprV[i].z*dt; sprV[i].y-=14*dt; if(sprLife[i]<=0) spr[i*3+1]=-9999; } }
     sprayGeo.attributes.position.needsUpdate=true;
 
-    // skier mesh
+    // skier mesh + pro-tuck pose rig
     skier.position.set(S.x,S.y,S.z); skier.rotation.y=-S.head;
     S.roll=lerp(S.roll,-S.head*0.9-(S.airborne?0:sh*0.3),1-Math.pow(0.01,dt)); skier.rotation.z=S.roll;
-    skier.rotation.x=S.airborne?-0.15:(tuck?0.4:0.12)+(checking?0.1:0);
+    skier.rotation.x=S.airborne?-0.1:0.04;
+    S.tuckA=lerp(S.tuckA,(S.airborne?0.45:tuck),1-Math.pow(0.02,dt)); var ta=S.tuckA;
+    RIG.torso.rotation.x=-(0.34+0.95*ta)+(checking?0.16:0);        // flatten the back toward horizontal in the tuck
+    RIG.head.rotation.x=(0.34+0.95*ta)*0.86-0.04;                  // keep the head/eyes downhill
+    RIG.armL.rotation.x=-(0.08+0.7*ta); RIG.armR.rotation.x=-(0.08+0.7*ta); // pin arms forward
+    RIG.hips.position.y=RIG.hipY-0.34*ta;                          // sink into the tuck
     var vis=(S.invuln>0)?(Math.floor(now*18)%2===0):true; skier.visible=vis;
     blob.position.set(S.x,heightAt(S.x,S.z)+0.15,S.z);
     var bs=S.airborne?clamp(1-(S.y-groundY)/40,0.3,1):1; blob.scale.setScalar(bs); blob.material.opacity=0.28*bs;
