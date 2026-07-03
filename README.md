@@ -17,8 +17,9 @@ folder on any static host.
   - **Blue · steeper** — 4 hearts, faster & more obstacles, medium target
   - **Black · expert** — 3 hearts, fast dense snowballs, narrow target
 
-  **Dodge** the rock outcrops and the rolling **snowballs** (each hit costs a heart; run out and you
-  wipe out), then hit the big final kicker and **stick the landing on the bullseye target**
+  **Dodge** the rock outcrops and the rolling **snowballs** — plough into a rock and you stop dead and
+  get stuck for a beat before digging out (jump to clear them); each hit also costs a heart, and if you
+  run out you wipe out. Then hit the big final kicker and **stick the landing on the bullseye target**
   to complete the run. Tuned to be a real challenge without being punishing — hits give you
   a short invulnerability window, and the target is generous on Green.
 
@@ -36,11 +37,12 @@ and bloom in lockstep: brilliant daylight at the summit → partial → diamond 
 | | |
 |---|---|
 | `← →` | carve |
-| `↑` / `space` | tuck (speed) |
+| `↑` / `W` | tuck (speed) |
+| `space` / `K` | jump (hop over rocks & snowballs) |
 | `↓` | check speed (hockey stop) |
 | `E` | hasten the eclipse |
 | `R` | restart run · `M` | menu |
-| mouse / touch | drag to steer, hold to tuck (mobile has a TUCK button) |
+| mouse / touch | drag to steer, hold to tuck; mobile has TUCK + JUMP buttons |
 | 🔊 | sound on / off |
 
 ## Craft notes

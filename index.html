@@ -43,7 +43,7 @@
     #s-title{font-size:40px!important}#s-sub{font-size:13px!important}
     #mode-row{flex-direction:column}.modecard{width:78vw;max-width:320px}
     #h-spd,#h-alt{font-size:26px!important}#h-hint{display:none}
-    #tuckbtn{display:flex!important}
+    #tuckbtn,#jumpbtn{display:flex!important}
   }
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400&family=Space+Grotesk:wght@300;400;500&display=swap');
 </style>
@@ -73,10 +73,11 @@
     <div style="position:absolute;right:26px;bottom:74px;width:14px;height:150px;border:1px solid rgba(150,200,255,.35);border-radius:8px;overflow:hidden">
       <i id="h-prog" style="position:absolute;left:0;right:0;top:0;height:0%;background:linear-gradient(#ffe6b0,#6fb0ff);display:block"></i></div>
 
-    <div id="h-hint" style="position:absolute;left:26px;bottom:22px;font-size:11px;letter-spacing:.1em;color:#7fa6cc;line-height:1.7">←→ carve · ↑ tuck / space · ↓ check speed · E hasten eclipse · R restart</div>
+    <div id="h-hint" style="position:absolute;left:26px;bottom:22px;font-size:11px;letter-spacing:.1em;color:#7fa6cc;line-height:1.7">←→ carve · ↑ tuck · space jump · ↓ check speed · E eclipse · R restart</div>
   </div>
 
-  <button id="tuckbtn" aria-label="tuck" style="display:none;position:absolute;bottom:26px;left:50%;transform:translateX(-50%);z-index:6;pointer-events:auto;width:78px;height:78px;border-radius:50%;background:rgba(10,16,26,.5);border:1px solid rgba(150,200,255,.45);color:#d6ecff;font-size:11px;letter-spacing:.16em;align-items:center;justify-content:center">TUCK</button>
+  <button id="tuckbtn" aria-label="tuck" style="display:none;position:absolute;bottom:26px;left:calc(50% - 92px);z-index:6;pointer-events:auto;width:78px;height:78px;border-radius:50%;background:rgba(10,16,26,.5);border:1px solid rgba(150,200,255,.45);color:#d6ecff;font-size:11px;letter-spacing:.16em;align-items:center;justify-content:center">TUCK</button>
+  <button id="jumpbtn" aria-label="jump" style="display:none;position:absolute;bottom:26px;left:calc(50% + 14px);z-index:6;pointer-events:auto;width:78px;height:78px;border-radius:50%;background:rgba(10,16,26,.5);border:1px solid rgba(255,220,150,.5);color:#ffe6b0;font-size:11px;letter-spacing:.16em;align-items:center;justify-content:center">JUMP</button>
 
   <button id="mute" aria-label="toggle sound" title="sound on / off" style="position:absolute;top:16px;right:18px;z-index:6;pointer-events:auto;width:34px;height:34px;border-radius:50%;background:rgba(10,16,26,.5);border:1px solid rgba(150,200,255,.4);color:#d6ecff;font-size:15px;line-height:30px;text-align:center;cursor:pointer;padding:0">🔊</button>
 
@@ -108,7 +109,7 @@
       <button class="diffbtn" data-d="blue">Blue</button>
       <button class="diffbtn" data-d="black">Black</button>
     </div>
-    <div id="s-hint" style="margin-top:26px;font-size:11px;color:#6d84a4;letter-spacing:.12em">←→ carve · ↑ / space tuck · ↓ check speed · sound on</div>
+    <div id="s-hint" style="margin-top:26px;font-size:11px;color:#6d84a4;letter-spacing:.12em">←→ carve · ↑ tuck · space jump · ↓ check speed · sound on</div>
   </div>
 </div>
 
@@ -195,7 +196,11 @@
     var base=-GRADE*zz + 42*Math.sin(zz*0.00055)+20*Math.sin(zz*0.0016+2.1);
     var dx=x-spineX(z), ad=Math.abs(dx);
     var off=smoothstep(ad,PISTE*0.7,PISTE*2.4);
-    var mog=(0.7+5.2*off)*(fbm(x*0.05+30,zz*0.05)-0.5)*2.0 + 0.5*(fbm(x*0.014,zz*0.02)-0.5)*6.0;
+    // layered relief so the surface reads like wind-worked snow, not a smooth digital hill
+    var mog=(0.7+5.2*off)*(fbm(x*0.05+30,zz*0.05)-0.5)*2.0      // moguls / chop (stronger off-piste)
+          + 0.5*(fbm(x*0.014,zz*0.02)-0.5)*6.0                 // broad rolls in the pitch
+          + 1.3*(fbm(x*0.022+11,zz*0.022+4)-0.5)              // soft mid-scale drift everywhere
+          + (0.5+1.6*off)*(fbm(x*0.09+3,zz*0.09)-0.5);        // fine sastrugi / wind ripple
     var wall=0; if(ad>235){ var t=ad-235; wall=t*t*0.0024+t*0.5; }
     var kick=0; for(var i=0;i<KICKERS.length;i++){ var d=zz-KICKERS[i]; if(Math.abs(d)<22&&ad<PISTE*1.3){ var q=d/17; kick+=7.5*Math.max(0,1-q*q); } }
     var d2=zz-FINAL_KICK; if(Math.abs(d2)<26&&ad<PISTE*1.5){ var q2=d2/20; kick+=13*Math.max(0,1-q2*q2); } // big final launch
@@ -207,29 +212,32 @@
   texLoader.crossOrigin='';
   // assign each map only once it loads — a failed fetch degrades to clean untextured snow, never black
   function snowTex(url,srgb,slot){ texLoader.load(url,function(t){
-    t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(90,860); t.anisotropy=Math.min(8,maxAniso);
+    t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(52,500); t.anisotropy=Math.min(8,maxAniso); // less tiling → repetition reads less "digital"
     if(srgb) t.encoding=THREE.sRGBEncoding; tmat[slot]=t; tmat.needsUpdate=true; }); }
 
-  var TW=720, tgeo=new THREE.PlaneGeometry(TW,RUNLEN+400,160,420);
+  var TW=720, segX=lowPower?150:220, segZ=lowPower?400:560;
+  var tgeo=new THREE.PlaneGeometry(TW,RUNLEN+400,segX,segZ);
   tgeo.rotateX(-Math.PI/2); tgeo.translate(0,0,-(RUNLEN/2-100));
-  var tpos=tgeo.attributes.position, tcol=[], cc=new THREE.Color();
+  var tpos=tgeo.attributes.position, tcol=[], cc=new THREE.Color(), shadeBlue=new THREE.Color(0x9cb2d8);
   var tusCol=new THREE.Color(0x8f7340), rockCol=new THREE.Color(0x6b6862);
   for(var i=0;i<tpos.count;i++){
     var x=tpos.getX(i),z=tpos.getZ(i),h=heightAt(x,z); tpos.setY(i,h);
     var e=2.0, hx=(heightAt(x+e,z)-heightAt(x-e,z))/(2*e), hz=(heightAt(x,z+e)-heightAt(x,z-e))/(2*e);
     var dx=Math.abs(x-spineX(z)),zz=-z, slope=Math.min(1,Math.sqrt(hx*hx+hz*hz));
-    // flat tints only — the sun/shadows/normal-map carry the shading now
-    if(dx>250&&slope>0.72){ cc.setHSL(0.60,0.08,0.42).lerp(rockCol,0.5); }                 // exposed rock faces
-    else if(dx<PISTE){ var cord=0.02*Math.sin(x*0.9)+0.02*Math.sin(zz*0.8); cc.setHSL(0.58,0.03,0.90+cord); } // groomed corduroy
-    else { cc.setHSL(0.60,0.06,0.85);                                                      // powder, faintly blue
-      // NZ high country: tussock and scree bleed through where the cover thins (more toward the valley)
+    // organic tint — macro + meso noise drive lightness so it never bands into flat digital patches
+    var n1=fbm(x*0.006+2,zz*0.006), n2=fbm(x*0.031+9,zz*0.031+5);
+    var L=0.85+0.06*(n1-0.5)*2+0.035*(n2-0.5)*2;
+    if(dx>250&&slope>0.70){ cc.setHSL(0.60,0.06,0.34+0.14*n2).lerp(rockCol,0.55); }         // exposed rock faces
+    else if(dx<PISTE){ var cord=0.018*Math.sin(x*0.9)+0.018*Math.sin(zz*0.8); cc.setHSL(0.58,0.03,Math.min(0.98,L+0.04+cord)); } // groomed corduroy
+    else { cc.setHSL(0.60,0.04+0.05*n1,L);                                                  // powder
       var tus=fbm(x*0.02+7,zz*0.02+3), thr=0.72-0.14*(zz/RUNLEN);
-      if(tus>thr) cc.lerp(tusCol,Math.min(0.75,(tus-thr)*3.0));
+      if(tus>thr) cc.lerp(tusCol,Math.min(0.7,(tus-thr)*2.6));                              // tussock/scree bleeding through
+      cc.lerp(shadeBlue,clamp((0.5-n2)*0.5,0,0.16));                                        // cool blue in the hollows
     }
     tcol.push(cc.r,cc.g,cc.b);
   }
   tgeo.setAttribute('color',new THREE.Float32BufferAttribute(tcol,3)); tgeo.computeVertexNormals();
-  var tmat=new THREE.MeshStandardMaterial({vertexColors:true,normalScale:new THREE.Vector2(1.4,1.4),roughness:0.85,metalness:0.0});
+  var tmat=new THREE.MeshStandardMaterial({vertexColors:true,normalScale:new THREE.Vector2(1.9,1.9),roughness:0.88,metalness:0.0});
   snowTex('assets/snow_color.jpg',true,'map'); snowTex('assets/snow_normal.jpg',false,'normalMap'); snowTex('assets/snow_rough.jpg',false,'roughnessMap');
   var terrainMesh=new THREE.Mesh(tgeo,tmat); terrainMesh.receiveShadow=!lowPower; scene.add(terrainMesh);
 
@@ -588,7 +596,7 @@
     black:{key:'black',spd:1.32,hearts:3,ballInterval:120,ballCount:2,ballLat:1.4,targetR:12,label:'Black · expert'}
   };
   var diff=SIM_DIFF;
-  var S={ x:0,z:0,y:0,vy:0, head:0,headTarget:0, speed:8, airborne:false, roll:0, crash:0, invuln:0,
+  var S={ x:0,z:0,y:0,vy:0, head:0,headTarget:0, speed:8, airborne:false, roll:0, crash:0, invuln:0, jumpCd:0,
           gates:0, dodged:0, hearts:Infinity, airStart:0,airAccum:0,bestAir:0, prevZZ:0,
           mode:'sim', started:false, finished:false, failed:false, landRating:'', manualEcl:0, shake:0, toastT:0, tuckA:0 };
   var topSpeed=0, curPhase=0, eclT=0;
@@ -603,7 +611,7 @@
 
   function reset(){
     S.x=spineX(0); S.z=-6; S.y=heightAt(S.x,S.z)+SKI_OFF; S.vy=0; S.prevZZ=6;
-    S.head=0; S.headTarget=0; S.speed=8; S.airborne=false; S.roll=0; S.crash=0; S.invuln=0;
+    S.head=0; S.headTarget=0; S.speed=8; S.airborne=false; S.roll=0; S.crash=0; S.invuln=0; S.jumpCd=0;
     S.gates=0; S.dodged=0; S.airAccum=0; S.bestAir=0; S.finished=false; S.failed=false; S.manualEcl=0; S.shake=0; S.landRating=''; S.toastT=0;
     S.hearts=diff.hearts; topSpeed=0; lastBallZ=0; eclT=0;
     for(var i=0;i<GATES.length;i++) GATES[i].passed=false;
@@ -643,7 +651,7 @@
     if(e.code==='KeyM') showMenu();
     if(!S.started){ if(e.code==='Digit1') begin('sim'); if(e.code==='Space'||e.code==='Enter') begin('sim'); } });
   addEventListener('keyup',function(e){ keys[e.code]=false; });
-  var ptrSteer=0, ptrTuck=false, ptrActive=false;
+  var ptrSteer=0, ptrTuck=false, ptrJump=false, ptrActive=false;
   function ptr(e){ var r=canvas.getBoundingClientRect(); var nx=((e.clientX-r.left)/r.width)*2-1; ptrSteer=clamp(nx*1.5,-1,1); }
   canvas.addEventListener('pointerdown',function(e){ ptrActive=true; ptrTuck=true; ptr(e); });
   canvas.addEventListener('pointermove',function(e){ if(ptrActive) ptr(e); });
@@ -651,6 +659,9 @@
   var tuckBtn=document.getElementById('tuckbtn');
   tuckBtn.addEventListener('pointerdown',function(e){ e.stopPropagation(); ptrTuck=true; });
   tuckBtn.addEventListener('pointerup',function(e){ e.stopPropagation(); ptrTuck=false; });
+  var jumpBtn=document.getElementById('jumpbtn');
+  jumpBtn.addEventListener('pointerdown',function(e){ e.stopPropagation(); ptrJump=true; });
+  jumpBtn.addEventListener('pointerup',function(e){ e.stopPropagation(); ptrJump=false; });
 
   // ============================================================ eclipse driver
   var now=0;
@@ -689,9 +700,13 @@
   }
 
   // ============================================================ collisions
-  function hitObstacle(){ if(S.invuln>0) return; S.shake=Math.min(1,S.shake+0.7); emitSpray(S.x,S.y-0.6,S.z,0,0,8); S.speed*=0.5;
-    if(S.mode==='adv'){ S.hearts--; S.invuln=1.35; sfxHit(); updateHeartsHUD(); document.getElementById('flash').style.opacity='0.6'; if(S.hearts<=0) failRun(); else toast('-1 ♥',0.8); }
-    else { S.crash=1.0; sfxHit(); } }
+  // hard = ploughed into a rock (stop dead, tumble, dig out); soft = clipped by a snowball (knocked, keeps sliding)
+  function hitObstacle(hard){ if(S.invuln>0||S.crash>0) return; sfxHit();
+    S.shake=Math.min(1,S.shake+(hard?1.0:0.7)); emitSpray(S.x,S.y-0.6,S.z,0,0,hard?14:8);
+    if(hard){ S.speed=0; S.crash=1.5; toast('OUCH — STUCK',1.0); }   // rock: full stop + brief stuck, then digs out
+    else { S.speed*=0.5; S.crash=0.45; }
+    if(S.mode==='adv'){ S.hearts--; S.invuln=Math.max(S.invuln,S.crash+0.4); updateHeartsHUD(); document.getElementById('flash').style.opacity='0.6';
+      if(S.hearts<=0) failRun(); else if(!hard) toast('-1 ♥',0.8); } }
   function failRun(){ S.failed=true; sfxFail();
     document.getElementById('fail-stats').innerHTML='made it to <b>'+Math.round(TOP_ALT+S.y)+' m</b> · dodged <b>'+S.dodged+'</b> · top speed <b>'+Math.round(topSpeed*3.6)+' km/h</b>';
     document.getElementById('fail').style.display='flex'; }
@@ -713,18 +728,20 @@
     // steering
     var steer=0; if(keys.ArrowLeft) steer-=1; if(keys.ArrowRight) steer+=1; steer+=ptrSteer; steer=clamp(steer,-1,1);
     var checking=(keys.ArrowDown?1:0);
-    var tuck=(keys.ArrowUp||keys.Space||keys.KeyW||ptrTuck)?1:0;
+    var tuck=(keys.ArrowUp||keys.KeyW||ptrTuck)?1:0;
+    var jump=(keys.Space||keys.KeyK||ptrJump)?1:0;
     if(moving&&S.crash<=0) S.headTarget=steer*(0.62+0.55*checking);
     var authority=S.airborne?0.4:1.0;
     S.head=lerp(S.head,S.headTarget*authority,1-Math.pow(0.0009,dt));
     if(S.crash>0){ S.crash-=dt; S.head+=Math.sin(now*22)*dt*1.4; }
     if(S.invuln>0) S.invuln-=dt;
+    if(S.jumpCd>0) S.jumpCd-=dt;
 
     // speed
     var ch=Math.cos(S.head), sh=Math.sin(S.head);
     var target=(24+15*tuck)*(0.22+0.78*Math.abs(ch))*diff.spd - checking*10;
-    if(S.crash>0) target=6; target=Math.max(3,target);
-    if(!S.airborne) S.speed=lerp(S.speed,target,1-Math.pow(tuck?0.35:0.12,dt));
+    if(S.crash>0){ target=0.4; } else { target=Math.max(3,target); }   // rock stop holds the skier nearly still
+    if(!S.airborne) S.speed=lerp(S.speed,target,1-Math.pow(S.crash>0?0.001:(tuck?0.35:0.12),dt));
 
     // integrate downhill
     if(moving){ S.x+=sh*S.speed*dt; S.z+=-Math.abs(ch)*S.speed*dt; }
@@ -745,14 +762,15 @@
         }
       }
     } else { S.y=groundY;
-      if(moving&&S.speed>17){ for(var ki=0;ki<KICKERS.length;ki++){ if(S.prevZZ<KICKERS[ki]&&curZZ>=KICKERS[ki]&&Math.abs(S.x-spineX(S.z))<PISTE*1.3){ S.airborne=true; S.vy=4+S.speed*0.34; sfxJump(); break; } }
+      if(jump&&moving&&S.crash<=0&&S.jumpCd<=0){ S.airborne=true; S.vy=10.5+S.speed*0.06; S.jumpCd=0.5; sfxJump(); } // manual hop — clears rocks & snowballs
+      if(!S.airborne&&moving&&S.speed>17){ for(var ki=0;ki<KICKERS.length;ki++){ if(S.prevZZ<KICKERS[ki]&&curZZ>=KICKERS[ki]&&Math.abs(S.x-spineX(S.z))<PISTE*1.3){ S.airborne=true; S.vy=4+S.speed*0.34; sfxJump(); break; } }
         if(!S.airborne&&S.prevZZ<FINAL_KICK&&curZZ>=FINAL_KICK&&Math.abs(S.x-spineX(S.z))<PISTE*1.5){ S.airborne=true; S.vy=6+S.speed*0.42; sfxJump(); if(S.mode==='adv') toast('STICK THE LANDING!',1.2); } }
     }
     S.prevZZ=curZZ;
 
-    // rocks
-    if(moving&&S.crash<=0&&S.invuln<=0){ for(var i=0;i<ROCKS.length;i++){ var t=ROCKS[i]; var dz=t.z-S.z;
-      if(dz>-4&&dz<4){ var ddx=t.x-S.x, rr=t.r+1.4; if(ddx*ddx+dz*dz<rr*rr){ hitObstacle(); break; } } } }
+    // rocks — only when actually on the ground (you can jump over them)
+    if(moving&&!S.airborne&&S.crash<=0&&S.invuln<=0){ for(var i=0;i<ROCKS.length;i++){ var t=ROCKS[i]; var dz=t.z-S.z;
+      if(dz>-4&&dz<4){ var ddx=t.x-S.x, rr=t.r+1.4; if(ddx*ddx+dz*dz<rr*rr){ hitObstacle(true); break; } } } }
 
     // snowballs (adventure)
     if(S.mode==='adv'&&moving){
@@ -762,7 +780,7 @@
         bl.m.rotation.x+=dt*bl.vz*-0.3; bl.m.rotation.z+=dt*bl.vx*0.3;
         var dz=bl.m.position.z-S.z, dx=bl.m.position.x-S.x;
         if(bl.m.position.z>S.z+18 || Math.abs(bl.m.position.x-spineX(bl.m.position.z))>PISTE*3.2){ bl.on=false; bl.m.visible=false; S.dodged++; continue; }
-        if(S.invuln<=0 && dx*dx+dz*dz < (bl.r+1.5)*(bl.r+1.5) && Math.abs(S.y-bl.m.position.y)<bl.r+2.2){ bl.on=false; bl.m.visible=false; hitObstacle(); }
+        if(S.invuln<=0 && dx*dx+dz*dz < (bl.r+1.5)*(bl.r+1.5) && Math.abs(S.y-bl.m.position.y)<bl.r+2.2){ bl.on=false; bl.m.visible=false; hitObstacle(false); }
       }
     }
 
@@ -779,8 +797,9 @@
 
     // skier mesh + pro-tuck pose rig
     skier.position.set(S.x,S.y,S.z); skier.rotation.y=-S.head;
-    S.roll=lerp(S.roll,-S.head*0.9-(S.airborne?0:sh*0.3),1-Math.pow(0.01,dt)); skier.rotation.z=S.roll;
-    skier.rotation.x=S.airborne?-0.1:0.04;
+    S.roll=lerp(S.roll,-S.head*0.9-(S.airborne?0:sh*0.3),1-Math.pow(0.01,dt));
+    if(S.crash>0){ skier.rotation.z=S.roll+Math.sin(now*20)*0.35; skier.rotation.x=0.55+Math.sin(now*14)*0.12; } // tumble / dig out
+    else { skier.rotation.z=S.roll; skier.rotation.x=S.airborne?-0.1:0.04; }
     S.tuckA=lerp(S.tuckA,(S.airborne?0.45:tuck),1-Math.pow(0.02,dt)); var ta=S.tuckA;
     RIG.torso.rotation.x=-(0.34+0.95*ta)+(checking?0.16:0);        // flatten the back toward horizontal in the tuck
     RIG.head.rotation.x=(0.34+0.95*ta)*0.86-0.04;                  // keep the head/eyes downhill
@@ -808,10 +827,11 @@
 
     // camera chase (+ speed bob)
     if(S.started){ var dirX=Math.sin(S.head), dirZ=-Math.abs(Math.cos(S.head)), speedK=clamp(S.speed/40,0,1);
-      camDes.set(S.x-dirX*(14+6*speedK), S.y+6.6+2*tuck+(S.airborne?0:Math.sin(now*12)*0.22*speedK), S.z-dirZ*(16+8*speedK));
-      if(S.shake>0){ S.shake-=dt*2; camDes.x+=(Math.random()-0.5)*S.shake*3; camDes.y+=(Math.random()-0.5)*S.shake*3; }
+      // closer + lower chase so the gear (skis, boots, poles, bib, goggles) reads; pulls back a touch with speed
+      camDes.set(S.x-dirX*(10.5+5*speedK), S.y+4.2+1.4*tuck+(S.airborne?0:Math.sin(now*12)*0.2*speedK), S.z-dirZ*(12+7*speedK));
+      if(S.shake>0){ S.shake-=dt*2; camDes.x+=(Math.random()-0.5)*S.shake*3.5; camDes.y+=(Math.random()-0.5)*S.shake*3.5; }
       camera.position.lerp(camDes,1-Math.pow(0.0016,dt));
-      lookAt.set(S.x+dirX*12,S.y-0.2,S.z+dirZ*22); camera.lookAt(lookAt);
+      lookAt.set(S.x+dirX*11,S.y+1.0,S.z+dirZ*20); camera.lookAt(lookAt);
       var fovT=BASE_FOV+16*tuck*speedK+6*speedK; camera.fov+=(fovT-camera.fov)*(1-Math.pow(0.02,dt)); camera.updateProjectionMatrix();
     }
     skyRig.position.copy(camera.position); ridgeG.position.copy(camera.position);
