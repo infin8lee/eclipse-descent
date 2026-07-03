@@ -52,6 +52,12 @@ and bloom in lockstep: brilliant daylight at the summit → partial → diamond 
   spray off the edges, persistent carve tracks, a phase-driven bloom on the corona and
   glints (desktop; auto-off on low-power devices), FOV widening and a subtle camera bob at
   speed.
+- **Majestic eclipse sky** — a 360° twilight ring glowing all around the horizon (warm at
+  the base, rose then deep-violet to the zenith, brightest toward the hidden sun), the
+  Milky Way arcing overhead in procedural nebulosity, a two-layer coloured starfield,
+  planets (Venus/Jupiter/Mars) emerging, a black moon disc ringed by a pearly corona with
+  chromosphere and red prominences, and a diamond-ring flare on the limb at the edges of
+  totality.
 - **One driver, whole mood** — `applyEclipse(phase)` couples everything to a single number.
 - **Single-source terrain** — `heightAt(x,z)` builds the mesh *and* resolves collision,
   moguls, valley walls, and every kicker lip, so the skier can never disagree with the

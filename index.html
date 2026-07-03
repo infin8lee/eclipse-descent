@@ -145,7 +145,7 @@
   renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 
   var scene=new THREE.Scene();
-  var DAY=new THREE.Color(0x9ec6ee), NIGHT=new THREE.Color(0x0a1024);
+  var DAY=new THREE.Color(0x9ec6ee), NIGHT=new THREE.Color(0x0a0920);   // totality zenith: deep indigo-violet
   scene.background=DAY.clone();
   scene.fog=new THREE.Fog(0x9ec6ee,700,6200);
 
@@ -239,21 +239,62 @@
   var glintMat=new THREE.PointsMaterial({color:0xdff0ff,map:dotTex,size:2.4,sizeAttenuation:true,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending});
   scene.add(new THREE.Points(new THREE.BufferGeometry().setAttribute('position',new THREE.BufferAttribute(gp,3)),glintMat));
 
-  // ============================================================ sky dome + stars + eclipse
-  var skyMat=new THREE.ShaderMaterial({ side:THREE.BackSide, depthWrite:false,
-    uniforms:{ uPhase:{value:0}, uTop:{value:new THREE.Color(0x2f68b6)}, uBot:{value:new THREE.Color(0xbfd8f2)}, uNight:{value:new THREE.Color(0x05060f)} },
-    vertexShader:'varying vec3 vP; void main(){ vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
-    fragmentShader:['uniform vec3 uTop;uniform vec3 uBot;uniform vec3 uNight;uniform float uPhase;varying vec3 vP;',
-      'void main(){ float t=clamp(normalize(vP).y*0.5+0.5,0.0,1.0);',
-      ' vec3 day=mix(uBot,uTop,pow(t,0.8)); vec3 col=mix(day,uNight,clamp(uPhase*1.15,0.0,1.0));',
-      ' float horiz=smoothstep(0.5,0.0,t); col+=vec3(0.16,0.05,0.02)*horiz*smoothstep(0.55,1.0,uPhase);',
-      ' gl_FragColor=vec4(col,1.0);}'].join('\n') });
-  var skyDome=new THREE.Mesh(new THREE.SphereGeometry(9000,24,16),skyMat); skyDome.layers.set(2); scene.add(skyDome);
+  // ============================================================ sky dome + galaxy + stars + eclipse
+  var SUNDIR=new THREE.Vector3(0.10,0.26,-0.96).normalize(), SUNDIST=7200;
+  var SUN_PERP=new THREE.Vector3().crossVectors(SUNDIR,new THREE.Vector3(0,1,0)).normalize(); // along the moon's limb, for the diamond ring
+  var skyRig=new THREE.Group(); scene.add(skyRig);   // holds dome/galaxy/stars; recentred on the camera each frame
 
-  var SN=1800, sp=new Float32Array(SN*3);
-  for(var i=0;i<SN;i++){ var v=new THREE.Vector3().set(Math.random()-0.5,Math.random()*0.9+0.05,Math.random()-0.5).normalize().multiplyScalar(8000); v.toArray(sp,i*3); }
-  var starMat=new THREE.PointsMaterial({color:0xffffff,size:9,sizeAttenuation:true,transparent:true,opacity:0,depthWrite:false});
-  var stars=new THREE.Points(new THREE.BufferGeometry().setAttribute('position',new THREE.BufferAttribute(sp,3)),starMat); stars.layers.set(2); scene.add(stars);
+  // sky gradient with a 360° twilight ring at totality (the signature "sunset all around")
+  var skyMat=new THREE.ShaderMaterial({ side:THREE.BackSide, depthWrite:false,
+    uniforms:{ uPhase:{value:0}, uSun:{value:SUNDIR.clone()},
+      uDayTop:{value:new THREE.Color(0x2f68b6)}, uDayBot:{value:new THREE.Color(0xcfe3f5)},
+      uZen:{value:new THREE.Color(0x0a0930)}, uTwHi:{value:new THREE.Color(0x83335a)}, uTwLo:{value:new THREE.Color(0xe6813c)} },
+    vertexShader:'varying vec3 vP; void main(){ vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
+    fragmentShader:[
+      'uniform float uPhase; uniform vec3 uSun,uDayTop,uDayBot,uZen,uTwHi,uTwLo; varying vec3 vP;',
+      'void main(){ vec3 d=normalize(vP); float up=clamp(d.y,0.0,1.0);',
+      ' vec3 day=mix(uDayBot,uDayTop,pow(up,0.62));',
+      ' float ring=smoothstep(0.42,0.0,up);',                          // twilight hugs the whole horizon
+      ' vec3 twi=mix(uTwHi,uTwLo,smoothstep(0.18,0.0,up));',           // orange low, rose higher
+      ' vec3 night=mix(uZen,twi,ring);',
+      ' vec2 sd=vec2(uSun.x,uSun.z), dh=vec2(d.x,d.z); float dl=length(dh); float az=0.0;',
+      ' if(dl>0.001) az=max(0.0,dot(normalize(sd),dh/dl));',
+      ' night+=uTwLo*ring*pow(az,2.5)*0.65; night+=uTwHi*ring*0.14;',  // brightest toward the hidden sun
+      ' vec3 col=mix(day,night,clamp(uPhase*1.12,0.0,1.0));',
+      ' gl_FragColor=vec4(col,1.0);}'
+    ].join('\n') });
+  var skyDome=new THREE.Mesh(new THREE.SphereGeometry(9000,32,20),skyMat); skyDome.layers.set(2); skyDome.renderOrder=-2; skyRig.add(skyDome);
+
+  // Milky Way — a great arc of nebulosity + star-fog that rises as totality falls
+  var galaxyMat=new THREE.ShaderMaterial({ side:THREE.BackSide, transparent:true, depthWrite:false, depthTest:false, blending:THREE.AdditiveBlending,
+    uniforms:{ uAmt:{value:0} },
+    vertexShader:'varying vec3 vP; void main(){ vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
+    fragmentShader:[
+      'uniform float uAmt; varying vec3 vP;',
+      'float h31(vec3 p){ return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453); }',
+      'float vn(vec3 p){ vec3 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f);',
+      ' return mix(mix(mix(h31(i),h31(i+vec3(1,0,0)),f.x),mix(h31(i+vec3(0,1,0)),h31(i+vec3(1,1,0)),f.x),f.y),',
+      '            mix(mix(h31(i+vec3(0,0,1)),h31(i+vec3(1,0,1)),f.x),mix(h31(i+vec3(0,1,1)),h31(i+vec3(1,1,1)),f.x),f.y),f.z);}',
+      'float fbm3(vec3 p){ float a=0.5,s=0.0; for(int k=0;k<4;k++){ s+=a*vn(p); p*=2.03; a*=0.5;} return s; }',
+      'void main(){ vec3 d=normalize(vP); vec3 gn=normalize(vec3(0.36,0.52,0.77));',
+      ' float band=abs(dot(d,gn)); float m=smoothstep(0.36,0.02,band);',
+      ' float n=fbm3(d*7.0); float dust=smoothstep(0.40,0.72,fbm3(d*13.0+5.0));',
+      ' float bright=m*(0.30+0.78*n)*(1.0-0.65*dust); bright+=m*m*smoothstep(0.16,0.0,band)*0.7;',
+      ' float spark=pow(h31(floor(d*520.0)),42.0);',
+      ' vec3 col=mix(vec3(0.50,0.58,0.86),vec3(0.93,0.86,0.75),n)*bright;',
+      ' col+=vec3(0.9,0.95,1.0)*spark*m*1.4; col*=smoothstep(-0.02,0.22,d.y);',   // fade at/below horizon
+      ' gl_FragColor=vec4(col*uAmt,1.0);}'
+    ].join('\n') });
+  var galaxy=new THREE.Mesh(new THREE.SphereGeometry(8600,32,20),galaxyMat); galaxy.layers.set(2); galaxy.renderOrder=-1; galaxy.visible=false; skyRig.add(galaxy);
+
+  // starfield — two layers (fine + bright), round, faintly coloured
+  function makeStars(count,size,spread){ var pos=new Float32Array(count*3), col=[], cc2=new THREE.Color();
+    for(var i=0;i<count;i++){ var v=new THREE.Vector3().set(Math.random()-0.5,Math.random()*0.92+0.04,Math.random()-0.5).normalize().multiplyScalar(spread); v.toArray(pos,i*3);
+      cc2.setHSL(0.55+(Math.random()-0.5)*0.2,0.35*Math.random(),0.72+Math.random()*0.28); col.push(cc2.r,cc2.g,cc2.b); }
+    var g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(pos,3)); g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+    var mat=new THREE.PointsMaterial({size:size,map:dotTex,vertexColors:true,sizeAttenuation:true,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending});
+    var pts=new THREE.Points(g,mat); pts.layers.set(2); skyRig.add(pts); return mat; }
+  var starMatA=makeStars(2600,7,8000), starMatB=makeStars(340,17,7800);
 
   // distant mountain ridgelines — cheap silhouettes that give the valley a horizon
   function ridgeTexture(seed,jag){ var cv=document.createElement('canvas'); cv.width=1024; cv.height=256; var g=cv.getContext('2d');
@@ -276,7 +317,6 @@
     g.fillStyle='#f2f2ea'; g.fillRect(0,0,140,170); g.fillStyle='#c81f1f'; g.fillRect(0,0,140,26); g.fillRect(0,144,140,26);
     g.fillStyle='#0e0f12'; g.font='bold 118px Arial,sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText(num,70,90);
     g.strokeStyle='#0e0f12'; g.lineWidth=5; g.strokeRect(3,3,134,164); var t=new THREE.CanvasTexture(cv); t.anisotropy=4; return t; }
-  var SUNDIR=new THREE.Vector3(0.10,0.26,-0.96).normalize(), SUNDIST=7200;
   // crisp eclipsed sun: one canvas, redrawn as the moon takes its bite (a punched hole shows the sky through it)
   var eclCv=document.createElement('canvas'); eclCv.width=eclCv.height=512;
   var eclTex=new THREE.CanvasTexture(eclCv); eclTex.encoding=THREE.sRGBEncoding; var lastCover=-1;
@@ -298,20 +338,46 @@
   drawEclipsedSun(0.12);
   var sunSpr=new THREE.Sprite(new THREE.SpriteMaterial({map:eclTex,depthWrite:false,depthTest:false,transparent:true}));
   sunSpr.scale.set(1450,1450,1); sunSpr.layers.set(2); sunSpr.renderOrder=2; scene.add(sunSpr);
-  // corona with radial streamers, revealed at totality
-  var corTex=(function(){ var cv=document.createElement('canvas'); cv.width=cv.height=512; var g=cv.getContext('2d');
-    var base=g.createRadialGradient(256,256,40,256,256,250);
-    base.addColorStop(0,'rgba(255,252,240,0.9)'); base.addColorStop(0.25,'rgba(240,244,255,0.35)'); base.addColorStop(1,'rgba(240,244,255,0)');
-    g.fillStyle=base; g.fillRect(0,0,512,512);
-    for(var i=0;i<110;i++){ var a=Math.random()*6.2832;
-      var len=90+Math.random()*150*(0.5+Math.abs(Math.cos(a)));      // streamers bias equatorial, like a real corona
-      g.save(); g.translate(256,256); g.rotate(a);
-      var lg=g.createLinearGradient(40,0,40+len,0);
-      lg.addColorStop(0,'rgba(255,255,250,'+(0.10+Math.random()*0.12)+')'); lg.addColorStop(1,'rgba(255,255,250,0)');
-      g.fillStyle=lg; g.beginPath(); g.moveTo(40,-2.2); g.lineTo(40+len,0); g.lineTo(40,2.2); g.fill(); g.restore(); }
-    var t=new THREE.CanvasTexture(cv); t.encoding=THREE.sRGBEncoding; return t; })();
-  var coronaSpr=new THREE.Sprite(new THREE.SpriteMaterial({map:corTex,blending:THREE.AdditiveBlending,depthWrite:false,depthTest:false,transparent:true,opacity:0}));
-  coronaSpr.scale.set(2600,2600,1); coronaSpr.layers.set(2); coronaSpr.renderOrder=1; scene.add(coronaSpr);
+  // corona — pearly inner glow, long equatorial streamers, chromosphere ring + red prominences
+  function makeCorona(res,streamers,longBias){ var cv=document.createElement('canvas'); cv.width=cv.height=res; var g=cv.getContext('2d'); var c=res/2;
+    var base=g.createRadialGradient(c,c,res*0.06,c,c,res*0.5);
+    base.addColorStop(0,'rgba(255,253,244,0.95)'); base.addColorStop(0.18,'rgba(246,248,255,0.5)'); base.addColorStop(0.5,'rgba(232,238,255,0.14)'); base.addColorStop(1,'rgba(232,238,255,0)');
+    g.fillStyle=base; g.fillRect(0,0,res,res);
+    for(var i=0;i<streamers;i++){ var a=Math.random()*6.2832, eq=0.45+0.55*Math.abs(Math.cos(a));  // equatorial streamers run longer
+      var len=res*(0.10+(0.14+longBias*0.22)*Math.random()*eq), w=res*0.006*(0.6+Math.random());
+      g.save(); g.translate(c,c); g.rotate(a);
+      var lg=g.createLinearGradient(res*0.09,0,res*0.09+len,0);
+      lg.addColorStop(0,'rgba(255,255,250,'+(0.09+Math.random()*0.13)+')'); lg.addColorStop(1,'rgba(255,255,250,0)');
+      g.fillStyle=lg; g.beginPath(); g.moveTo(res*0.09,-w); g.lineTo(res*0.09+len,0); g.lineTo(res*0.09,w); g.fill(); g.restore(); }
+    g.strokeStyle='rgba(255,96,120,0.55)'; g.lineWidth=res*0.008; g.beginPath(); g.arc(c,c,res*0.086,0,6.2832); g.stroke();  // chromosphere
+    for(var p=0;p<5;p++){ var pa=Math.random()*6.2832, pr=res*0.089; g.save(); g.translate(c+Math.cos(pa)*pr,c+Math.sin(pa)*pr);
+      g.fillStyle='rgba(255,72,92,'+(0.4+Math.random()*0.3)+')'; g.beginPath(); g.arc(0,0,res*(0.006+Math.random()*0.011),0,6.2832); g.fill(); g.restore(); }  // prominences
+    var t=new THREE.CanvasTexture(cv); t.encoding=THREE.sRGBEncoding; return t; }
+  var coronaSpr=new THREE.Sprite(new THREE.SpriteMaterial({map:makeCorona(1024,150,0.4),blending:THREE.AdditiveBlending,depthWrite:false,depthTest:false,transparent:true,opacity:0}));
+  coronaSpr.scale.set(2400,2400,1); coronaSpr.layers.set(2); coronaSpr.renderOrder=2; scene.add(coronaSpr);
+  var coronaSpr2=new THREE.Sprite(new THREE.SpriteMaterial({map:makeCorona(1024,90,1.0),blending:THREE.AdditiveBlending,depthWrite:false,depthTest:false,transparent:true,opacity:0}));
+  coronaSpr2.scale.set(4200,4200,1); coronaSpr2.layers.set(2); coronaSpr2.renderOrder=1; scene.add(coronaSpr2);
+  // the moon: a near-black disc drawn OVER the corona centre, so totality reads as a dark disc ringed by corona
+  var moonTex=(function(){ var cv=document.createElement('canvas'); cv.width=cv.height=256; var g=cv.getContext('2d'); var c=128;
+    var rg=g.createRadialGradient(c,c,52,c,c,70); rg.addColorStop(0,'rgba(5,5,12,1)'); rg.addColorStop(0.86,'rgba(5,5,12,1)'); rg.addColorStop(1,'rgba(5,5,12,0)');
+    g.fillStyle=rg; g.beginPath(); g.arc(c,c,70,0,6.2832); g.fill(); return new THREE.CanvasTexture(cv); })();
+  var moonDisc=new THREE.Sprite(new THREE.SpriteMaterial({map:moonTex,depthWrite:false,depthTest:false,transparent:true,opacity:0}));
+  moonDisc.scale.set(1150,1150,1); moonDisc.layers.set(2); moonDisc.renderOrder=4; scene.add(moonDisc);
+
+  // diamond-ring flare — the brilliant sliver of photosphere at the edges of totality
+  var flareTex=(function(){ var cv=document.createElement('canvas'); cv.width=cv.height=256; var g=cv.getContext('2d'); var c=128;
+    var rg=g.createRadialGradient(c,c,0,c,c,46); rg.addColorStop(0,'rgba(255,255,255,1)'); rg.addColorStop(0.5,'rgba(255,250,232,0.6)'); rg.addColorStop(1,'rgba(255,250,232,0)');
+    g.fillStyle=rg; g.beginPath(); g.arc(c,c,46,0,6.2832); g.fill();
+    for(var k=0;k<4;k++){ g.save(); g.translate(c,c); g.rotate(k*Math.PI/2); var lg=g.createLinearGradient(0,0,124,0); lg.addColorStop(0,'rgba(255,255,255,0.9)'); lg.addColorStop(1,'rgba(255,255,255,0)'); g.strokeStyle=lg; g.lineWidth=3; g.beginPath(); g.moveTo(0,0); g.lineTo(124,0); g.stroke(); g.restore(); }
+    return new THREE.CanvasTexture(cv); })();
+  var flareSpr=new THREE.Sprite(new THREE.SpriteMaterial({map:flareTex,blending:THREE.AdditiveBlending,depthWrite:false,depthTest:false,transparent:true,opacity:0}));
+  flareSpr.scale.set(900,900,1); flareSpr.layers.set(2); flareSpr.renderOrder=5; scene.add(flareSpr);
+
+  // planets that pop out at totality (Venus bright, Jupiter, ruddy Mars)
+  var PLANETS=[ {d:new THREE.Vector3(0.34,0.12,-0.93).normalize(),c:0xfff6e0,s:58},
+                {d:new THREE.Vector3(-0.55,0.34,-0.77).normalize(),c:0xfff0d6,s:42},
+                {d:new THREE.Vector3(0.66,0.30,-0.69).normalize(),c:0xffb28a,s:34} ];
+  var planetSprs=PLANETS.map(function(p){ var s=new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex,color:p.c,blending:THREE.AdditiveBlending,depthWrite:false,depthTest:false,transparent:true,opacity:0})); s.scale.set(p.s,p.s,1); s.layers.set(2); s.renderOrder=2; scene.add(s); return s; });
 
   // ------------------------------------------------------------ drifting snowfall (atmosphere)
   var SF=lowPower?350:700, sfp=new Float32Array(SF*3);
@@ -592,9 +658,12 @@
     var dim=1-0.94*Math.pow(phase,1.3);
     sun.intensity=1.35*dim; fill.intensity=0.22*dim+0.02; sky.intensity=0.72*dim+0.06; sun.color.setHSL(0.09,0.65*phase,1.0);
     renderer.toneMappingExposure=1.0-0.24*phase;                      // the world's film stock closes down
-    var c=DAY.clone().lerp(NIGHT,Math.min(1,phase*1.12)); scene.background.copy(c); scene.fog.color.copy(c);
+    var c=DAY.clone().lerp(NIGHT,Math.min(1,phase*1.12));
+    var fogc=c.clone().lerp(new THREE.Color(0x3a2140), smoothstep(phase,0.7,0.98)*0.55);   // distant snow catches the dusk
+    scene.background.copy(c); scene.fog.color.copy(fogc);
     scene.fog.near=700-400*phase; scene.fog.far=6200-2600*phase; skyMat.uniforms.uPhase.value=phase;
-    starMat.opacity=smoothstep(phase,0.55,0.95)*0.95; glintMat.opacity=smoothstep(phase,0.3,0.7)*0.5*(1-phase*0.5);
+    starMatA.opacity=smoothstep(phase,0.5,0.9)*0.95; starMatB.opacity=smoothstep(phase,0.45,0.85);
+    glintMat.opacity=smoothstep(phase,0.3,0.7)*0.5*(1-phase*0.5);
     sfMat.opacity=0.25+0.15*phase;
     ridgeFar.color.copy(c).lerp(new THREE.Color(0xffffff),0.10);      // barely lighter than the haze they sit in
     ridgeNear.color.copy(c).lerp(new THREE.Color(0xffffff),0.04);
@@ -602,11 +671,21 @@
     var cover=clamp(0.12+0.88*(phase/0.94),0,1); if(phase>=0.94) cover=1;
     if(Math.abs(cover-lastCover)>0.004){ lastCover=cover; drawEclipsedSun(cover); }
     var sunPos=SUNDIR.clone().multiplyScalar(SUNDIST).add(camera.position);
-    sunSpr.position.copy(sunPos); coronaSpr.position.copy(sunPos);
+    sunSpr.position.copy(sunPos); coronaSpr.position.copy(sunPos); coronaSpr2.position.copy(sunPos); moonDisc.position.copy(sunPos);
+    flareSpr.position.copy(sunPos).addScaledVector(SUN_PERP, 300);   // the diamond sits on the moon's limb
+    moonDisc.material.opacity=smoothstep(cover,0.88,1.0);            // the black moon fills in as totality completes
     var tot=smoothstep(phase,0.84,0.95);
-    coronaSpr.material.opacity=tot; coronaSpr.scale.setScalar(2000+1200*tot+120*Math.sin(now*2));
-    sunSpr.material.opacity=1-0.75*tot; tmat.color.setHSL(0.6,0.03+0.15*phase,1.0-0.18*phase);
-    if(useBloom) bloomPass.strength = 0.14 + 1.1*phase;
+    coronaSpr.material.opacity=tot; coronaSpr.scale.setScalar(2200+900*tot+90*Math.sin(now*2));
+    coronaSpr2.material.opacity=tot*0.7; coronaSpr2.scale.setScalar(3800+1500*tot+150*Math.sin(now*1.3+1.0));
+    // diamond ring: a brilliant flare as the last/first sliver of photosphere vanishes and returns
+    var dr=(cover<0.994)?Math.exp(-Math.pow((cover-0.955)/0.03,2.0)):0.0;
+    flareSpr.material.opacity=dr; flareSpr.scale.setScalar(750+650*dr);
+    sunSpr.material.opacity=1-0.82*tot; tmat.color.setHSL(0.6,0.03+0.15*phase,1.0-0.18*phase);
+    // Milky Way + planets rise as the light fails
+    var deep=smoothstep(phase,0.6,0.95);
+    galaxy.visible=deep>0.01; galaxyMat.uniforms.uAmt.value=deep*0.9;
+    for(var pi=0;pi<planetSprs.length;pi++){ planetSprs[pi].position.copy(PLANETS[pi].d).multiplyScalar(SUNDIST).add(camera.position); planetSprs[pi].material.opacity=deep*(pi===0?1.0:0.8); }
+    if(useBloom) bloomPass.strength = 0.14 + 1.15*phase;
   }
 
   // ============================================================ collisions
@@ -735,8 +814,8 @@
       lookAt.set(S.x+dirX*12,S.y-0.2,S.z+dirZ*22); camera.lookAt(lookAt);
       var fovT=BASE_FOV+16*tuck*speedK+6*speedK; camera.fov+=(fovT-camera.fov)*(1-Math.pow(0.02,dt)); camera.updateProjectionMatrix();
     }
-    skyDome.position.copy(camera.position); stars.position.copy(camera.position); ridgeG.position.copy(camera.position);
-    coronaSpr.material.rotation+=dt*0.02;                              // corona slowly breathes around the black disc
+    skyRig.position.copy(camera.position); ridgeG.position.copy(camera.position);
+    coronaSpr.material.rotation+=dt*0.02; coronaSpr2.material.rotation-=dt*0.013; // the two corona layers counter-rotate
     if(sun.castShadow){ sun.position.copy(skier.position).addScaledVector(SUNDIR,900); // shadow frustum tracks the racer
       sun.target.position.copy(skier.position); sun.target.updateMatrixWorld(); }
 
