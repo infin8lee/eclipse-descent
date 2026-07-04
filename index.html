@@ -45,11 +45,54 @@
   .diffbtn[data-d=blue]:hover{box-shadow:0 4px 18px rgba(47,123,224,.5)}
   .diffbtn[data-d=black]{color:#e7ecf4;border-color:#8a94a8}
   .diffbtn[data-d=black]:hover{box-shadow:0 4px 18px rgba(160,170,190,.5)}
-  @media (max-width:680px){
-    #s-title{font-size:40px!important}#s-sub{font-size:13px!important}
+  /* post-run tap buttons: hidden on desktop, shown on touch/small screens (overlays are keyboard-only otherwise) */
+  .ovbtn{display:none;pointer-events:auto;cursor:pointer;padding:12px 26px;border-radius:100px;font-family:inherit;
+    font-size:12px;letter-spacing:.22em;text-transform:uppercase;background:rgba(10,16,26,.55);border:1px solid #ffe6b0;color:#ffe6b0}
+  #fail .ovbtn{border-color:#ff8a7a;color:#ff8a7a}
+  .ovrow{display:flex;gap:14px;margin-top:24px;justify-content:center}
+  @media (max-width:680px),(pointer:coarse){
+    .ovbtn{display:inline-block}
+    .kbd-hint{display:none!important}
+  }
+  /* ---------- mobile: narrow screens OR touch-first devices (landscape phones included); desktop pointers never match ---------- */
+  @media (max-width:680px), (pointer:coarse) and (max-width:1024px){
+    #s-title{font-size:40px!important}#s-sub{font-size:13px!important;padding:0 16px}
     #mode-row{flex-direction:column}.modecard{width:78vw;max-width:320px}
-    #h-spd,#h-alt{font-size:26px!important}#h-hint{display:none}
-    #tuckbtn,#jumpbtn{display:flex!important}
+    #diff-row{flex-wrap:wrap;justify-content:center;padding:0 12px}
+    #s-hint{padding:0 16px}
+    /* top strip: tighter type so the phase label clears the sound button; notch-safe offsets */
+    #h-phase{top:calc(12px + env(safe-area-inset-top))!important;font-size:9px!important;letter-spacing:.18em!important;max-width:62vw;text-align:center}
+    #h-hdg{top:calc(28px + env(safe-area-inset-top))!important;font-size:9px!important;letter-spacing:.16em!important}
+    #h-hearts{top:calc(44px + env(safe-area-inset-top))!important;font-size:14px!important}
+    #mute{top:calc(10px + env(safe-area-inset-top))!important}
+    /* the toast was a 34px nowrap line — the main screen-overlap offender */
+    #h-toast{font-size:19px!important;white-space:normal!important;width:86vw;line-height:1.3}
+    #h-air{font-size:20px!important}
+    #h-spd,#h-alt{font-size:24px!important}
+    .lab{font-size:8px!important;letter-spacing:.18em!important}
+    #h-hint{display:none}
+    /* thumb zones: TUCK bottom-left, JUMP bottom-right (they were dead-centre over the skier) */
+    #tuckbtn,#jumpbtn{display:flex!important;width:72px!important;height:72px!important;bottom:calc(16px + env(safe-area-inset-bottom))!important}
+    #tuckbtn{left:calc(14px + env(safe-area-inset-left))!important}
+    #jumpbtn{left:auto!important;right:calc(14px + env(safe-area-inset-right))!important}
+    /* counter + progress bar lift clear of the thumb buttons */
+    #h-countwrap{left:16px!important;bottom:calc(104px + env(safe-area-inset-bottom))!important;font-size:11px!important}
+    #h-progwrap{right:12px!important;bottom:calc(104px + env(safe-area-inset-bottom))!important;height:96px!important}
+    /* overlays: fit small portrait screens */
+    #finish-title,#fail-title{font-size:40px!important}
+    #finish-stats,#fail-stats{font-size:12px!important;padding:0 14px;line-height:1.8}
+  }
+  /* landscape phones: short viewport — compress the menu so nothing clips (scrolls if it must) */
+  @media (max-height:520px){
+    #start{overflow-y:auto;justify-content:flex-start;padding:16px 0 12px}
+    #s-title{font-size:30px!important}
+    #s-sub{font-size:12px!important;margin-top:6px!important}
+    #mode-row{margin-top:12px!important;gap:12px!important;flex-direction:row}
+    .modecard{width:220px;padding:10px 14px}
+    .mc-ico{font-size:20px}.mc-name{font-size:19px;margin-top:4px}.mc-desc{font-size:10.5px;margin-top:4px}
+    #diff-row{margin-top:12px!important}
+    #s-hint{margin-top:12px!important}
+    #finish-title,#fail-title{font-size:34px!important}
   }
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400&family=Space+Grotesk:wght@300;400;500&display=swap');
 </style>
@@ -71,12 +114,12 @@
     <div class="g" style="position:absolute;right:26px;top:50%;transform:translateY(-50%);text-align:right">
       <div id="h-alt" style="font-size:34px;font-weight:500;line-height:1">0</div><div class="lab">m · altitude</div></div>
 
-    <div class="g" style="position:absolute;left:26px;bottom:74px;font-size:12px;letter-spacing:.14em">
+    <div class="g" id="h-countwrap" style="position:absolute;left:26px;bottom:74px;font-size:12px;letter-spacing:.14em">
       <span id="h-countlab" style="color:#7fa6cc">GATES</span> <span id="h-count">0</span></div>
     <div id="h-air" style="position:absolute;left:50%;top:34%;transform:translateX(-50%);font-family:'Cormorant Garamond',serif;font-size:30px;color:#fff;opacity:0;text-shadow:0 0 20px rgba(180,220,255,.8)">AIR</div>
     <div id="h-toast" style="position:absolute;left:50%;top:26%;transform:translateX(-50%);font-family:'Cormorant Garamond',serif;font-size:34px;color:#ffe6b0;opacity:0;text-shadow:0 0 22px rgba(255,210,140,.85);text-align:center;white-space:nowrap"></div>
 
-    <div style="position:absolute;right:26px;bottom:74px;width:14px;height:150px;border:1px solid rgba(150,200,255,.35);border-radius:8px;overflow:hidden">
+    <div id="h-progwrap" style="position:absolute;right:26px;bottom:74px;width:14px;height:150px;border:1px solid rgba(150,200,255,.35);border-radius:8px;overflow:hidden">
       <i id="h-prog" style="position:absolute;left:0;right:0;top:0;height:0%;background:linear-gradient(#ffe6b0,#6fb0ff);display:block"></i></div>
 
     <div id="h-hint" style="position:absolute;left:26px;bottom:22px;font-size:11px;letter-spacing:.1em;color:#7fa6cc;line-height:1.7">←→ carve · ↑ tuck · space jump · ↓ check speed · E eclipse · R restart</div>
@@ -91,14 +134,16 @@
   <div id="finish" style="position:absolute;inset:0;z-index:9;display:none;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;text-align:center">
     <div id="finish-title" style="font-family:'Cormorant Garamond',serif;font-weight:300;font-size:60px;color:#fff;text-shadow:0 0 40px rgba(255,210,140,.8),0 2px 18px rgba(0,0,0,.7);line-height:1.04">Totality<br>at the finish</div>
     <div id="finish-stats" style="margin-top:18px;color:#d6ecff;font-size:13px;letter-spacing:.14em"></div>
-    <div style="margin-top:22px;color:#ffe6b0;font-size:11px;letter-spacing:.34em;text-transform:uppercase;text-shadow:0 1px 8px rgba(0,0,0,.85)">press R to ride again &nbsp;·&nbsp; M for menu</div>
+    <div class="kbd-hint" style="margin-top:22px;color:#ffe6b0;font-size:11px;letter-spacing:.34em;text-transform:uppercase;text-shadow:0 1px 8px rgba(0,0,0,.85)">press R to ride again &nbsp;·&nbsp; M for menu</div>
+    <div class="ovrow"><button class="ovbtn" id="fin-again">ride again</button><button class="ovbtn" id="fin-menu">menu</button></div>
   </div>
 
   <!-- fail overlay (adventure) -->
   <div id="fail" style="position:absolute;inset:0;z-index:9;display:none;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;text-align:center">
-    <div style="font-family:'Cormorant Garamond',serif;font-weight:300;font-size:58px;color:#ff8a7a;text-shadow:0 0 34px rgba(255,90,70,.6),0 2px 18px rgba(0,0,0,.7)">Wiped out</div>
+    <div id="fail-title" style="font-family:'Cormorant Garamond',serif;font-weight:300;font-size:58px;color:#ff8a7a;text-shadow:0 0 34px rgba(255,90,70,.6),0 2px 18px rgba(0,0,0,.7)">Wiped out</div>
     <div id="fail-stats" style="margin-top:16px;color:#d6ecff;font-size:13px;letter-spacing:.14em"></div>
-    <div style="margin-top:22px;color:#d6ecff;font-size:11px;letter-spacing:.34em;text-transform:uppercase">press R to retry &nbsp;·&nbsp; M for menu</div>
+    <div class="kbd-hint" style="margin-top:22px;color:#d6ecff;font-size:11px;letter-spacing:.34em;text-transform:uppercase">press R to retry &nbsp;·&nbsp; M for menu</div>
+    <div class="ovrow"><button class="ovbtn" id="fail-again">retry</button><button class="ovbtn" id="fail-menu">menu</button></div>
   </div>
 
   <!-- start / mode menu -->
@@ -680,6 +725,12 @@
   var jumpBtn=document.getElementById('jumpbtn');
   jumpBtn.addEventListener('pointerdown',function(e){ e.stopPropagation(); ptrJump=true; });
   jumpBtn.addEventListener('pointerup',function(e){ e.stopPropagation(); ptrJump=false; });
+
+  // touch devices: keyboard hints make no sense, and the post-run overlays need tap buttons
+  var isTouch=matchMedia('(pointer:coarse)').matches||('ontouchstart' in window);
+  if(isTouch) document.getElementById('s-hint').textContent='drag left / right to steer · hold TUCK for speed · tap JUMP over rocks';
+  [['fin-again',function(){reset();}],['fin-menu',showMenu],['fail-again',function(){reset();}],['fail-menu',showMenu]]
+    .forEach(function(b){ var el=document.getElementById(b[0]); if(el) el.addEventListener('click',function(e){ e.stopPropagation(); b[1](); }); });
 
   // ============================================================ eclipse driver
   var now=0;
